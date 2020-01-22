@@ -1,11 +1,11 @@
 ﻿using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("Evelator")]
+[assembly: AssemblyTitle("Elevator")]
 [assembly: AssemblyDescription("Run process in flexible environments")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Explosive Theorem Lab.")]
-[assembly: AssemblyProduct("Evelator")]
+[assembly: AssemblyProduct("Elevator")]
 [assembly: AssemblyCopyright("Copyright (C) Jeremy Lam \"JLChnToZ\" 2020")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
