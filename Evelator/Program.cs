@@ -245,11 +245,6 @@ namespace Elevator {
                                 break;
                             }
                             break;
-                        case 'U':
-                        case 'u':
-                            if(arg.Is("userprofile"))
-                                info.LoadUserProfile = true;
-                            break;
                         case 'V':
                         case 'v':
                             info.UseShellExecute = true;
