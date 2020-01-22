@@ -21,6 +21,9 @@ namespace Elevator {
                     case RunMode.RunAs:
                         startInfo = RunAs(args, matches, stopIndex, out wait);
                         break;
+                    case RunMode.Login:
+                        startInfo = Login(args, matches, stopIndex, out wait);
+                        break;
                     default:
                         throw new ArgumentException("Invalid mode");
                 }
@@ -103,7 +106,8 @@ namespace Elevator {
                 if(arg.Is("x") && m.Groups.TryGetValue(3, out uint value)) {
                     EnvironmentHelper.ReattachConsole(value);
                     attached = true;
-                }
+                } else if(newArgs.PushResolvedEnv(m))
+                    continue;
                 if(!arg.Is("runas"))
                     newArgs.PushArg(m);
             }
@@ -145,11 +149,12 @@ namespace Elevator {
                         info.Password = strValue.ToSecureString();
                     continue;
                 }
-
                 if(arg.Is("loaduserprofile")) {
                     info.LoadUserProfile = true;
                     continue;
                 }
+                if(newArgs.PushResolvedEnv(m))
+                    continue;
                 newArgs.PushArg(m);
             }
             if(!attached)

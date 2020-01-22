@@ -43,6 +43,16 @@ namespace Elevator {
         public static void PushProcessId(this StringBuilder newArgs) =>
             newArgs.PushArg($"/x={Process.GetCurrentProcess().Id}");
 
+        public static bool PushResolvedEnv(this StringBuilder newArgs, Match match) {
+            var arg = match.Groups.SuccessOrEmpty(2);
+            if(arg.StartsWith("e", StringComparison.OrdinalIgnoreCase) && !match.Groups.TryGetValue(3, out string _)) {
+                var key = arg.Substring(1);
+                newArgs.PushArg($"/e{key}={EnvironmentHelper.GetEnvValue(key)}");
+                return true;
+            }
+            return false;
+        }
+
         private static string EscapeReplace(Match match) {
             var group1 = match.Groups[1].Value;
             return string.Join(
