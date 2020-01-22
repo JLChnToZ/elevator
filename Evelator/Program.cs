@@ -1,101 +1,34 @@
 ﻿using System;
-using System.Collections.Specialized;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
-using System.Reflection;
-using System.Security;
 
-namespace Evelator {
-    internal enum RunMode {
-        Exec = 0,
-        Shell = 1,
-        SetEnv = 2,
-        RunAs = 3,
-    }
-
+namespace Elevator {
     internal static class Program {
-        private static readonly Lazy<Regex> rParseArg = new Lazy<Regex>(InitRParseArg);
-        private static readonly Lazy<Regex> cVaildateChar = new Lazy<Regex>(InitCVaildateChar);
-        private static readonly Lazy<Regex> cQuotesRequired = new Lazy<Regex>(InitCQuotesRequired);
-        private static readonly Lazy<Regex> rEscape = new Lazy<Regex>(InitREscape);
-
-        private static Regex RParseArg => rParseArg.Value;
-        private static Regex CVaildateChar => cVaildateChar.Value;
-        private static Regex CQuotesRequired => cQuotesRequired.Value;
-        private static Regex REscape => rEscape.Value;
-        private static string ExecPath => Assembly.GetEntryAssembly().Location;
-
-        private static Regex InitRParseArg() =>
-            new Regex("^(?:-{1,2}|\\/)((.+?)(?:=(.+?))?)$", RegexOptions.Compiled);
-
-        private static Regex InitCVaildateChar() =>
-            new Regex("[\x00\x0a\x0d]", RegexOptions.Compiled);
-
-        private static Regex InitCQuotesRequired() =>
-            new Regex("\\s|\\\"\\\"", RegexOptions.Compiled);
-
-        private static Regex InitREscape() =>
-            new Regex("(\\\\*)(\\\"\\\"|$)", RegexOptions.Compiled);
-
-        private static string GetEnv(string key, StringDictionary overrides = null) {
-            try {
-                if(overrides != null && overrides.ContainsKey(key))
-                    return overrides[key];
-                return Environment.GetEnvironmentVariable(key);
-            } catch {
-                return string.Empty;
-            }
-        }
-
-        private static void PushNewArg(StringBuilder newArgs, string arg) {
-            if(arg == null) arg = string.Empty;
-            if(CVaildateChar.IsMatch(arg))
-                throw new ArgumentOutOfRangeException(nameof(arg));
-            if(newArgs.Length > 0)
-                newArgs.Append(' ');
-            if(arg == string.Empty) {
-                newArgs.Append("\"\"");
-                return;
-            }
-            if(!CQuotesRequired.IsMatch(arg)) {
-                newArgs.Append(arg);
-                return;
-            }
-            newArgs
-                .Append('"')
-                .Append(REscape.Replace(arg, ArgEscapeReplace))
-                .Append('"');
-        }
-
-        private static string ArgEscapeReplace(Match match) {
-            var group1 = match.Groups[1].Value;
-            return string.Join(
-                string.Empty,
-                group1,
-                group1,
-                match.Groups[2].Value == "\"" ? "\\\"" : string.Empty
-            );
-        }
 
         private static void Main(string[] args) {
             try {
-                ProcessStartInfo startInfo = null;
+                ProcessStartInfo startInfo;
+                WaitMode wait;
                 switch(Priortize(args, out var matches, out int stopIndex)) {
                     case RunMode.Exec:
                     case RunMode.Shell:
-                        startInfo = Exec(args, matches, stopIndex);
+                        startInfo = Exec(args, matches, stopIndex, out wait);
                         break;
                     case RunMode.SetEnv:
-                        startInfo = SetEnv(args, matches, stopIndex);
+                        startInfo = SetEnv(args, matches, stopIndex, out wait);
                         break;
                     case RunMode.RunAs:
-                        startInfo = RunAs(args, matches, stopIndex);
+                        startInfo = RunAs(args, matches, stopIndex, out wait);
                         break;
                     default:
                         throw new ArgumentException("Invalid mode");
                 }
-                Process.Start(startInfo);
+                var process = Process.Start(startInfo);
+                if(wait == WaitMode.Wait) {
+                    process.WaitForExit();
+                    Environment.Exit(process.ExitCode);
+                }
             } catch {
                 Environment.Exit(1);
             }
@@ -104,8 +37,9 @@ namespace Evelator {
         private static RunMode Priortize(string[] args, out Match[] matches, out int stopIndex) {
             var mode = RunMode.Exec;
             matches = new Match[args.Length];
+            var rParseArg = new Regex("^(?:-{1,2}|\\/)((.+?)(?:=(.+?))?)$");
             for(int i = 0; i < args.Length; i++) {
-                var m = RParseArg.Match(args[i]);
+                var m = rParseArg.Match(args[i]);
                 matches[i] = m;
                 if(!m.Success) {
                     stopIndex = i;
@@ -121,8 +55,13 @@ namespace Evelator {
                 switch(arg[0]) {
                     case 'R':
                     case 'r':
-                        if(string.Equals(arg, "runas", StringComparison.OrdinalIgnoreCase) && mode < RunMode.RunAs)
+                        if(arg.Is("runas") && mode < RunMode.RunAs)
                             mode = RunMode.RunAs;
+                        break;
+                    case 'L':
+                    case 'l':
+                        if(arg.Is("login") && mode < RunMode.Login)
+                            mode = RunMode.Login;
                         break;
                     case 'A':
                     case 'a':
@@ -138,169 +77,210 @@ namespace Evelator {
                         if(mode < RunMode.Shell)
                             mode = RunMode.Shell;
                         break;
-                    case 'C':
-                    case 'c':
-                    case 'U':
-                    case 'u':
-                    case 'W':
-                    case 'w':
-                    case 'N':
-                    case 'n':
-                    default:
-                        break;
                 }
             }
             stopIndex = args.Length;
             return mode;
         }
 
-        private static ProcessStartInfo RunAs(string[] args, Match[] matches, int stopIndex) {
-            var info = new ProcessStartInfo(ExecPath) {
+        private static ProcessStartInfo RunAs(string[] args, Match[] matches, int stopIndex, out WaitMode wait) {
+            wait = WaitMode.Wait;
+            var info = new ProcessStartInfo(EnvironmentHelper.ExecPath) {
                 UseShellExecute = true,
                 Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
             };
+            var attached = false;
             var newArgs = new StringBuilder();
             for(int i = 0; i < stopIndex; i++) {
-                var match = matches[i];
-                if(match == null) {
-                    PushNewArg(newArgs, i == stopIndex - 1 ? "--" : string.Empty);
+                var m = matches[i];
+                if(m == null) {
+                    newArgs.PushRestSeparator(i == stopIndex - 1);
                     continue;
                 }
-                var arg = match.Groups[1].Value;
-                if(!string.Equals(arg, "runas", StringComparison.OrdinalIgnoreCase))
-                    PushNewArg(newArgs, match.Value);
+                var arg = m.Groups[1].Value;
+                if(arg.Is("x") && m.Groups.TryGetValue(3, out uint value)) {
+                    EnvironmentHelper.ReattachConsole(value);
+                    attached = true;
+                }
+                if(!arg.Is("runas"))
+                    newArgs.PushArg(m);
             }
-            for(int i = stopIndex; i < args.Length; i++)
-                PushNewArg(newArgs, args[i]);
+            if(!attached)
+                newArgs.PushProcessId();
+            newArgs.PushRestArgs(args, stopIndex);
             info.Arguments = newArgs.ToString();
             return info;
         }
 
-        private static ProcessStartInfo SetEnv(string[] args, Match[] matches, int stopIndex) {
-            var info = new ProcessStartInfo(ExecPath) {
+        private static ProcessStartInfo Login(string[] args, Match[] matches, int stopIndex, out WaitMode wait) {
+            wait = WaitMode.Wait;
+            var info = new ProcessStartInfo(EnvironmentHelper.ExecPath) {
                 UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
             };
+            var attached = false;
+            var newArgs = new StringBuilder();
+            for(int i = 0; i < stopIndex; i++) {
+                var m = matches[i];
+                if(m == null) {
+                    newArgs.PushRestSeparator(i == stopIndex - 1);
+                    continue;
+                }
+                var arg = m.Groups[1].Value;
+                string strValue;
+                if(arg.Is("x") && m.Groups.TryGetValue(3, out uint value)) {
+                    EnvironmentHelper.ReattachConsole(value);
+                    attached = true;
+                }
+                if(arg.Is("login")) {
+                    if(m.Groups.TryGetValue(3, out strValue))
+                        info.UserName = strValue;
+                    continue;
+                }
+                if(arg.Is("loginpw")) {
+                    if(m.Groups.TryGetValue(3, out strValue))
+                        info.Password = strValue.ToSecureString();
+                    continue;
+                }
+
+                if(arg.Is("loaduserprofile")) {
+                    info.LoadUserProfile = true;
+                    continue;
+                }
+                newArgs.PushArg(m);
+            }
+            if(!attached)
+                newArgs.PushProcessId();
+            newArgs.PushRestArgs(args, stopIndex);
+            info.Arguments = newArgs.ToString();
+            return info;
+        }
+
+        private static ProcessStartInfo SetEnv(string[] args, Match[] matches, int stopIndex, out WaitMode wait) {
+            wait = WaitMode.Wait;
+            var info = new ProcessStartInfo(EnvironmentHelper.ExecPath) {
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
+            };
+            var attached = false;
             var newArgs = new StringBuilder();
             var newEnv = info.EnvironmentVariables;
             for(int i = 0; i < stopIndex; i++) {
                 var m = matches[i];
                 if(m == null) {
-                    PushNewArg(newArgs, i == stopIndex - 1 ? "--" : string.Empty);
+                    newArgs.PushRestSeparator(i == stopIndex - 1);
                     continue;
                 }
-                var arg = m.Groups[2].Success ?
-                    m.Groups[2].Value :
-                    string.Empty;
+                var arg = m.Groups.SuccessOrEmpty(2);
+                string strValue;
                 if(!string.IsNullOrEmpty(arg))
                     switch(arg[0]) {
                         case 'A':
                         case 'a': {
                             var key = arg.Substring(1);
-                            var env = GetEnv(key, newEnv);
-                            var valueGroup = m.Groups[3];
-                            newEnv[key] = valueGroup.Success ?
-                                env + valueGroup.Value :
-                                env;
+                            var env = EnvironmentHelper.GetEnvValue(key, newEnv);
+                            if(m.Groups.TryGetValue(3, out strValue))
+                                newEnv[key] = env + strValue;
                             continue;
                         }
                         case 'E':
                         case 'e': {
                             var key = arg.Substring(1);
-                            var valueGroup = m.Groups[3];
-                            newEnv[key] = valueGroup.Success ?
-                                valueGroup.Value :
-                                string.Empty;
+                            if(m.Groups.TryGetValue(3, out strValue))
+                                newEnv[key] = strValue;
+                            else
+                                newEnv[key] = EnvironmentHelper.GetEnvValue(key);
                             continue;
                         }
                         case 'P':
                         case 'p': {
                             var key = arg.Substring(1);
-                            var env = GetEnv(key, newEnv);
-                            var valueGroup = m.Groups[3];
-                            newEnv[key] = valueGroup.Success ?
-                                valueGroup.Value + env :
-                                env;
+                            var env = EnvironmentHelper.GetEnvValue(key, newEnv);
+                            if(m.Groups.TryGetValue(3, out strValue))
+                                newEnv[key] = strValue + env;
+                            continue;
+                        }
+                        case 'X':
+                        case 'x': {
+                            if(arg.Is("x") && m.Groups.TryGetValue(3, out uint value)) {
+                                EnvironmentHelper.ReattachConsole(value);
+                                attached = true;
+                            }
+                            newArgs.PushArg(m);
                             continue;
                         }
                     }
-                PushNewArg(newArgs, m.Value);
+                newArgs.PushArg(m);
             }
-            for(int i = stopIndex; i < args.Length; i++)
-                PushNewArg(newArgs, args[i]);
+            if(!attached)
+                newArgs.PushProcessId();
+            newArgs.PushRestArgs(args, stopIndex);
             info.Arguments = newArgs.ToString();
             return info;
         }
 
-        private static ProcessStartInfo Exec(string[] args, Match[] matches, int stopIndex) {
+        private static ProcessStartInfo Exec(string[] args, Match[] matches, int stopIndex, out WaitMode wait) {
+            wait = WaitMode.Wait;
             var info = new ProcessStartInfo(args[stopIndex]) {
                 UseShellExecute = false,
             };
             var newArgs = new StringBuilder();
             for(int i = 0; i < stopIndex; i++) {
                 var m = matches[i];
-                var arg = m.Groups[2].Success ?
-                    m.Groups[2].Value :
-                    string.Empty;
                 if(m == null)
                     continue;
+                var arg = m.Groups.SuccessOrEmpty(2);
+                string strValue;
                 if(!string.IsNullOrEmpty(arg))
                     switch(arg[0]) {
                         case 'C':
                         case 'c':
-                            if(string.Equals(arg, "cd", StringComparison.OrdinalIgnoreCase)) {
-                                var valueGroup = m.Groups[3];
-                                if(valueGroup.Success)
-                                    info.WorkingDirectory = valueGroup.Value;
-                                continue;
-                            }
-                            if(string.Equals(arg, "cusername", StringComparison.OrdinalIgnoreCase)) {
-                                var valueGroup = m.Groups[3];
-                                if(valueGroup.Success)
-                                    info.UserName = valueGroup.Value;
-                                continue;
-                            }
-                            if(string.Equals(arg, "cpassword", StringComparison.OrdinalIgnoreCase)) {
-                                var valueGroup = m.Groups[3];
-                                if(valueGroup.Success) {
-                                    var pw = new SecureString();
-                                    foreach(var c in valueGroup.Value)
-                                        pw.AppendChar(c);
-                                    info.Password = pw;
-                                }
-                                continue;
+                            if(arg.Is("cd")) {
+                                if(m.Groups.TryGetValue(3, out strValue))
+                                    info.WorkingDirectory = strValue;
+                                break;
                             }
                             break;
                         case 'U':
                         case 'u':
-                            if(string.Equals(arg, "userprofile", StringComparison.OrdinalIgnoreCase)) {
+                            if(arg.Is("userprofile"))
                                 info.LoadUserProfile = true;
-                                continue;
-                            }
                             break;
                         case 'V':
                         case 'v':
                             info.UseShellExecute = true;
                             info.Verb = arg.Substring(1);
-                            continue;
+                            break;
                         case 'W':
-                        case 'w':
-                            info.WindowStyle = (ProcessWindowStyle)Enum.Parse(typeof(ProcessWindowStyle), arg.Substring(1), true);
-                            continue;
+                        case 'w': {
+                            if(Enum.TryParse(arg.Substring(1), true, out ProcessWindowStyle value))
+                                info.WindowStyle = value;
+                            break;
+                        }
                         case 'N':
                         case 'n':
-                            if(string.Equals(arg, "nowindow", StringComparison.OrdinalIgnoreCase)) {
+                            if(arg.Is("nowindow")) {
                                 info.CreateNoWindow = true;
-                                continue;
+                                break;
                             }
-                            if(string.Equals(arg, "nouserprofile", StringComparison.OrdinalIgnoreCase)) {
-                                info.LoadUserProfile = false;
-                                continue;
+                            if(arg.Is("nowait")) {
+                                wait = WaitMode.NoWait;
+                                break;
                             }
                             break;
+                        case 'X':
+                        case 'x': {
+                            if(arg.Is("x") && m.Groups.TryGetValue(3, out uint value))
+                                EnvironmentHelper.ReattachConsole(value);
+                            break;
+                        }
                     }
             }
-            for(int i = stopIndex + 1; i < args.Length; i++)
-                PushNewArg(newArgs, args[i]);
+            newArgs.PushRestArgs(args, stopIndex + 1);
             info.Arguments = newArgs.ToString();
             return info;
         }
