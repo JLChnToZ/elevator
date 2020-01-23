@@ -4,12 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace Elevator {
     internal class ExecHandler: HandlerBase {
-        public ExecHandler(ParsedInfo info) : base(info) {}
+        public ExecHandler(ParsedInfo info) : base(info) { }
 
         protected override void InitStartInfo(ParsedInfo info) {
-            startInfo.FileName = EnvironmentHelper.ExecPath;
-            startInfo.UseShellExecute = false;
             startInfo.FileName = info.args[info.stopIndex];
+            startInfo.UseShellExecute = false;
         }
 
         protected override void HandleArgument(int index, Match match) {
@@ -17,13 +16,11 @@ namespace Elevator {
                 return;
             switch(arg[0]) {
                 case 'C':
-                case 'c':
-                    if(arg.Is("cd")) {
-                        if(match.Groups.TryGetValue(3, out string strValue))
-                            startInfo.WorkingDirectory = strValue;
-                        break;
-                    }
+                case 'c': {
+                    if(arg.Is("cd") && match.Groups.TryGetValue(3, out string value))
+                        startInfo.WorkingDirectory = value;
                     break;
+                }
                 case 'V':
                 case 'v':
                     startInfo.UseShellExecute = true;
