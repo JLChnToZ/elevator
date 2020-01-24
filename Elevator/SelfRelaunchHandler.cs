@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Elevator {
-    internal abstract class SelfRelaunchHandler: HandlerBase {
+    internal abstract class SelfRelaunchHandler: ProcessStartHandler {
         protected bool attached;
 
         protected SelfRelaunchHandler(ParsedInfo info) : base(info) { }
@@ -22,7 +22,6 @@ namespace Elevator {
             if(arg.StartsWith("e", StringComparison.OrdinalIgnoreCase) && !match.Groups.TryGetValue(3, out string _)) {
                 var key = arg.Substring(1);
                 AppendArgument($"/e{key}={EnvironmentHelper.GetEnvValue(key)}");
-                attached = true;
                 return true;
             }
             return false;

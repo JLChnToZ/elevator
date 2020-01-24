@@ -4,7 +4,7 @@ namespace Elevator {
     internal static class Program {
         private static void Main(string[] args) {
             try {
-                HandlerBase handler;
+                IHandler handler;
                 var info = new ParsedInfo(args);
                 switch(info.mode) {
                     case RunMode.Exec:

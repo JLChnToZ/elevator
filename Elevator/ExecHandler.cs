@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Elevator {
-    internal class ExecHandler: HandlerBase {
+    internal class ExecHandler: ProcessStartHandler {
         public ExecHandler(ParsedInfo info) : base(info) { }
 
         protected override void InitStartInfo(ParsedInfo info) {

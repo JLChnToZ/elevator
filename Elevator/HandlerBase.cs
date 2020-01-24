@@ -1,18 +1,18 @@
 ﻿using System;
 using System.Text;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Elevator {
-    internal abstract class HandlerBase {
+    internal abstract class HandlerBase: IHandler {
         private static readonly Regex validateChar = new Regex("[\x00\x0a\x0d]");
         private static readonly Regex checkQuotesRequired = new Regex("\\s|\\\"\\\"");
         private static readonly Regex escapeMatcher = new Regex("(\\\\*)(\\\"\\\"|$)");
 
-        protected readonly ProcessStartInfo startInfo = new ProcessStartInfo();
         private readonly StringBuilder newArgs = new StringBuilder();
         protected WaitMode wait;
         protected int stopIndex;
+
+        public string NewArguments => newArgs.ToString();
 
         protected HandlerBase(ParsedInfo parsedInfo) {
             stopIndex = parsedInfo.stopIndex;
@@ -23,13 +23,7 @@ namespace Elevator {
             FinalizeStartInfo(parsedInfo.args);
         }
 
-        public int Launch() {
-            var process = Process.Start(startInfo);
-            if(wait != WaitMode.Wait)
-                return 0;
-            process.WaitForExit();
-            return process.ExitCode;
-        }
+        public abstract int Launch();
 
         protected abstract void InitStartInfo(ParsedInfo info);
 
@@ -38,7 +32,6 @@ namespace Elevator {
         protected virtual void FinalizeStartInfo(string[] args) {
             for(int i = stopIndex; i < args.Length; i++)
                 AppendArgument(args[i]);
-            startInfo.Arguments = newArgs.ToString();
         }
 
         protected void AppendArgument(Match m) => AppendArgument(m.Value);
