@@ -51,7 +51,6 @@
     <Compile Include="RegexHelper.cs" />
     <Compile Include="ResolveEnvHandler.cs" />
     <Compile Include="RunAsHandler.cs" />
-    <Compile Include="RunMode.cs" />
     <Compile Include="SelfRelaunchHandler.cs" />
     <Compile Include="SetEnvHandler.cs" />
     <Compile Include="StringHelper.cs" />

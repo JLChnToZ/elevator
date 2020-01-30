@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace Elevator {
     internal struct ParsedInfo {
+        private static readonly Regex rParseArg = new Regex("^(?:-{1,2}|\\/)((.+?)(?:=(.+?))?)$");
+
         public readonly Type handlerType;
         public readonly string[] args;
         public readonly Match[] matches;
@@ -17,7 +19,6 @@ namespace Elevator {
             var handlerType = typeof(ExecHandler);
             int priority = int.MinValue;
             matches = new Match[args.Length];
-            var rParseArg = new Regex("^(?:-{1,2}|\\/)((.+?)(?:=(.+?))?)$");
             for(int i = 0; i < args.Length; i++) {
                 var m = rParseArg.Match(args[i]);
                 matches[i] = m;
@@ -25,10 +26,7 @@ namespace Elevator {
                     stopIndex = i;
                     return handlerType;
                 }
-                var arg = m.Groups[2].Success ?
-                    m.Groups[2].Value :
-                    string.Empty;
-                if(string.IsNullOrEmpty(arg)) {
+                if(string.IsNullOrEmpty(m.Groups.SuccessOrEmpty(2))) {
                     stopIndex = i + 1;
                     return handlerType;
                 }
