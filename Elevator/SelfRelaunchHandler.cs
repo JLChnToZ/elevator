@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Elevator {
@@ -14,23 +13,28 @@ namespace Elevator {
             startInfo.CreateNoWindow = true;
         }
 
+        protected override void HandleArgument(int index, Match match) {
+            if(match == null) {
+                AppendEmptyArgument(index == stopIndex - 1);
+                return;
+            }
+            if(!HandlerMeta.HandleArgument(this as IHandler, match))
+                AppendArgument(match);
+        }
+
         protected void AppendEmptyArgument(bool isRestSeparator) =>
             AppendArgument(isRestSeparator ? "--" : string.Empty);
-
-        protected bool AppendResolvedEnvironment(Match match) {
-            var arg = match.Groups.SuccessOrEmpty(2);
-            if(arg.StartsWith("e", StringComparison.OrdinalIgnoreCase) && !match.Groups.TryGetValue(3, out string _)) {
-                var key = arg.Substring(1);
-                AppendArgument($"/e{key}={EnvironmentHelper.GetEnvValue(key)}");
-                return true;
-            }
-            return false;
-        }
 
         protected override void FinalizeStartInfo(string[] args) {
             if(!attached)
                 AppendArgument($"/x={Process.GetCurrentProcess().Id}");
             base.FinalizeStartInfo(args);
+        }
+
+        public override void HandleConsoleAttach(uint value) {
+            base.HandleConsoleAttach(value);
+            attached = true;
+            AppendArgument($"/x={value}");
         }
     }
 }

@@ -1,19 +1,21 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Text.RegularExpressions;
 
 namespace Elevator {
     internal struct ParsedInfo {
-        public readonly RunMode mode;
+        public readonly Type handlerType;
         public readonly string[] args;
         public readonly Match[] matches;
         public readonly int stopIndex;
 
         public ParsedInfo(string[] args) {
             this.args = args;
-            mode = Parse(args, out matches, out stopIndex);
+            handlerType = Parse(args, out matches, out stopIndex);
         }
 
-        private static RunMode Parse(string[] args, out Match[] matches, out int stopIndex) {
-            var mode = RunMode.Exec;
+        private static Type Parse(string[] args, out Match[] matches, out int stopIndex) {
+            var handlerType = typeof(ExecHandler);
+            int priority = int.MinValue;
             matches = new Match[args.Length];
             var rParseArg = new Regex("^(?:-{1,2}|\\/)((.+?)(?:=(.+?))?)$");
             for(int i = 0; i < args.Length; i++) {
@@ -21,44 +23,22 @@ namespace Elevator {
                 matches[i] = m;
                 if(!m.Success) {
                     stopIndex = i;
-                    return mode;
+                    return handlerType;
                 }
                 var arg = m.Groups[2].Success ?
                     m.Groups[2].Value :
                     string.Empty;
                 if(string.IsNullOrEmpty(arg)) {
                     stopIndex = i + 1;
-                    return mode;
+                    return handlerType;
                 }
-                switch(arg[0]) {
-                    case 'R':
-                    case 'r':
-                        if(arg.Is("runas") && mode < RunMode.RunAs)
-                            mode = RunMode.RunAs;
-                        break;
-                    case 'L':
-                    case 'l':
-                        if(arg.Is("login") && mode < RunMode.Login)
-                            mode = RunMode.Login;
-                        break;
-                    case 'A':
-                    case 'a':
-                    case 'E':
-                    case 'e':
-                    case 'P':
-                    case 'p':
-                        if(mode < RunMode.SetEnv)
-                            mode = RunMode.SetEnv;
-                        break;
-                    case 'V':
-                    case 'v':
-                        if(mode < RunMode.Shell)
-                            mode = RunMode.Shell;
-                        break;
-                }
+                HandlerMeta.DoTypeMatch(m, ref handlerType, ref priority);
             }
             stopIndex = args.Length;
-            return mode;
+            return handlerType;
         }
+
+        public IHandler GetHandler() =>
+            Activator.CreateInstance(handlerType, this) as IHandler;
     }
 }

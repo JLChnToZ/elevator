@@ -9,7 +9,7 @@ namespace Elevator {
         private static readonly Regex escapeMatcher = new Regex("(\\\\*)(\\\"\\\"|$)");
 
         private readonly StringBuilder newArgs = new StringBuilder();
-        protected WaitMode wait;
+        protected WaitMode wait = WaitMode.Wait;
         protected int stopIndex;
 
         public string NewArguments => newArgs.ToString();
@@ -64,6 +64,11 @@ namespace Elevator {
                 group1,
                 match.Groups[2].Value == "\"" ? "\\\"" : string.Empty
             );
+        }
+
+        [ArgumentEntry("x", Unpriortized = true)]
+        public virtual void HandleConsoleAttach(uint value) {
+            EnvironmentHelper.ReattachConsole(value);
         }
     }
 }

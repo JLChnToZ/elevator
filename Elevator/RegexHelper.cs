@@ -13,13 +13,6 @@ namespace Elevator {
             return success;
         }
 
-        public static bool TryGetValue(this GroupCollection groups, int index, out uint value) {
-            if(groups.TryGetValue(index, out string strValue))
-                return uint.TryParse(strValue, out value);
-            value = 0;
-            return false;
-        }
-
         public static string SuccessOrEmpty(this GroupCollection groups, int index) {
             if(groups == null || groups.Count <= index)
                 return string.Empty;

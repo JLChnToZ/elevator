@@ -1,8 +1,8 @@
-﻿using System;
+﻿using System.Text.RegularExpressions;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 
 namespace Elevator {
+    [Priority(0)]
     internal class ExecHandler: ProcessStartHandler {
         public ExecHandler(ParsedInfo info) : base(info) { }
 
@@ -14,47 +14,32 @@ namespace Elevator {
         protected override void HandleArgument(int index, Match match) {
             if(match == null || !match.Groups.TryGetValue(2, out string arg) || arg.Length == 0)
                 return;
-            switch(arg[0]) {
-                case 'C':
-                case 'c': {
-                    if(arg.Is("cd") && match.Groups.TryGetValue(3, out string value))
-                        startInfo.WorkingDirectory = value;
-                    break;
-                }
-                case 'V':
-                case 'v':
-                    startInfo.UseShellExecute = true;
-                    startInfo.Verb = arg.Substring(1);
-                    break;
-                case 'W':
-                case 'w': {
-                    if(Enum.TryParse(arg.Substring(1), true, out ProcessWindowStyle value))
-                        startInfo.WindowStyle = value;
-                    break;
-                }
-                case 'N':
-                case 'n':
-                    if(arg.Is("nowindow")) {
-                        startInfo.CreateNoWindow = true;
-                        break;
-                    }
-                    if(arg.Is("nowait")) {
-                        wait = WaitMode.NoWait;
-                        break;
-                    }
-                    break;
-                case 'X':
-                case 'x': {
-                    if(arg.Is("x") && match.Groups.TryGetValue(3, out uint value))
-                        EnvironmentHelper.ReattachConsole(value);
-                    break;
-                }
-            }
+            _ = this.HandleArgument(match);
         }
 
         protected override void FinalizeStartInfo(string[] args) {
             stopIndex++;
             base.FinalizeStartInfo(args);
         }
+
+        [ArgumentEntry("cd")]
+        public void HandleChdir(string value) =>
+            startInfo.WorkingDirectory = value;
+
+        [ArgumentEntry("w", Prefixed = true)]
+        public void HandleWindowStyle(ProcessWindowStyle value) =>
+            startInfo.WindowStyle = value;
+
+        [ArgumentEntry("v", Prefixed = true)]
+        public void HandleWindowStyle(string value) =>
+            startInfo.Verb = value;
+
+        [ArgumentEntry("nowindow")]
+        public void HandleNoWindow() =>
+            startInfo.CreateNoWindow = true;
+
+        [ArgumentEntry("nowait")]
+        public void HandleNoWait() =>
+            wait = WaitMode.NoWait;
     }
 }

@@ -1,6 +1,5 @@
-﻿using System.Text.RegularExpressions;
-
-namespace Elevator {
+﻿namespace Elevator {
+    [Priority(50)]
     internal class SetEnvHandler: SelfRelaunchHandler {
         public SetEnvHandler(ParsedInfo info) : base(info) { }
 
@@ -9,51 +8,26 @@ namespace Elevator {
             startInfo.UseShellExecute = false;
         }
 
-        protected override void HandleArgument(int index, Match match) {
-            if(match == null) {
-                AppendEmptyArgument(index == stopIndex - 1);
-                return;
-            }
+        [ArgumentEntry("a", Prefixed = true)]
+        public void HandleAppendEnvironment(string key, string value) {
+            if(value == null) return;
             var newEnv = startInfo.EnvironmentVariables;
-            var arg = match.Groups.SuccessOrEmpty(2);
-            string strValue;
-            if(!string.IsNullOrEmpty(arg))
-                switch(arg[0]) {
-                    case 'A':
-                    case 'a': {
-                        var key = arg.Substring(1);
-                        var env = EnvironmentHelper.GetEnvValue(key, newEnv);
-                        if(match.Groups.TryGetValue(3, out strValue))
-                            newEnv[key] = env + strValue;
-                        return;
-                    }
-                    case 'E':
-                    case 'e': {
-                        var key = arg.Substring(1);
-                        if(match.Groups.TryGetValue(3, out strValue))
-                            newEnv[key] = strValue;
-                        else
-                            newEnv[key] = EnvironmentHelper.GetEnvValue(key);
-                        return;
-                    }
-                    case 'P':
-                    case 'p': {
-                        var key = arg.Substring(1);
-                        var env = EnvironmentHelper.GetEnvValue(key, newEnv);
-                        if(match.Groups.TryGetValue(3, out strValue))
-                            newEnv[key] = strValue + env;
-                        return;
-                    }
-                    case 'X':
-                    case 'x': {
-                        if(arg.Is("x") && match.Groups.TryGetValue(3, out uint value)) {
-                            EnvironmentHelper.ReattachConsole(value);
-                            attached = true;
-                        }
-                        break;
-                    }
-                }
-            AppendArgument(match);
+            var env = EnvironmentHelper.GetEnvValue(key, newEnv);
+            newEnv[key] = env + value;
+        }
+
+        [ArgumentEntry("e", Prefixed = true)]
+        public void HandleResolveEnvironment(string key, string value) {
+            startInfo.EnvironmentVariables[key] = value ??
+                EnvironmentHelper.GetEnvValue(key);
+        }
+
+        [ArgumentEntry("p", Prefixed = true)]
+        public void HandlePrefixEnvironment(string key, string value) {
+            if(value == null) return;
+            var newEnv = startInfo.EnvironmentVariables;
+            var env = EnvironmentHelper.GetEnvValue(key, newEnv);
+            newEnv[key] = value + env;
         }
     }
 }
