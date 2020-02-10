@@ -1,13 +1,8 @@
-﻿using System;
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Elevator {
     internal abstract class HandlerBase: IHandler {
-        private static readonly Regex validateChar = new Regex("[\x00\x0a\x0d]");
-        private static readonly Regex checkQuotesRequired = new Regex("\\s|\\\"\\\"");
-        private static readonly Regex escapeMatcher = new Regex("(\\\\*)(\\\"\\\"|$)");
-
         private readonly StringBuilder newArgs = new StringBuilder();
         protected WaitMode wait = WaitMode.Wait;
         protected int stopIndex;
@@ -31,40 +26,14 @@ namespace Elevator {
 
         protected virtual void FinalizeStartInfo(string[] args) {
             for(int i = stopIndex; i < args.Length; i++)
-                AppendArgument(args[i]);
+                newArgs.AppendArgument(args[i]);
         }
 
-        protected void AppendArgument(Match m) => AppendArgument(m.Value);
+        protected void AppendArgument(Match m) =>
+            newArgs.AppendArgument(m.Value);
 
-        protected void AppendArgument(string arg) {
-            if(arg == null) arg = string.Empty;
-            if(validateChar.IsMatch(arg))
-                throw new ArgumentOutOfRangeException(nameof(arg));
-            if(newArgs.Length > 0)
-                newArgs.Append(' ');
-            if(arg == string.Empty) {
-                newArgs.Append("\"\"");
-                return;
-            }
-            if(!checkQuotesRequired.IsMatch(arg)) {
-                newArgs.Append(arg);
-                return;
-            }
-            newArgs
-                .Append('"')
-                .Append(escapeMatcher.Replace(arg, EscapeReplace))
-                .Append('"');
-        }
-
-        private static string EscapeReplace(Match match) {
-            var group1 = match.Groups[1].Value;
-            return string.Join(
-                string.Empty,
-                group1,
-                group1,
-                match.Groups[2].Value == "\"" ? "\\\"" : string.Empty
-            );
-        }
+        protected void AppendArgument(string arg) =>
+            newArgs.AppendArgument(arg);
 
         [ArgumentEntry("x", Unpriortized = true)]
         public virtual void HandleConsoleAttach(uint value) {

@@ -4,7 +4,10 @@ namespace Elevator {
     internal static class Program {
         private static void Main(string[] args) {
             try {
-                Environment.Exit(new ParsedInfo(args).GetHandler().Launch());
+                PluginLoader.LoadPlugins();
+                var handler = new ParsedInfo(args).GetHandler();
+                HandlerMeta.CleanUp();
+                Environment.Exit(handler.Launch());
             } catch(Exception ex) {
                 Console.WriteLine($"Error: {ex.Message}");
                 Environment.Exit(1);

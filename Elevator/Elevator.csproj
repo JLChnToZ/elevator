@@ -36,11 +36,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ArgumentEntryAttribute.cs" />
+    <Compile Include="ArgumentHelper.cs" />
     <Compile Include="EnvironmentHelper.cs" />
     <Compile Include="ExecHandler.cs" />
     <Compile Include="HandlerBase.cs" />
     <Compile Include="HandlerMeta.cs" />
     <Compile Include="HandlerMetaMethod.cs" />
+    <Compile Include="PluginLoader.cs" />
     <Compile Include="PriorityAttribute.cs" />
     <Compile Include="ProcessStartHandler.cs" />
     <Compile Include="IHandler.cs" />

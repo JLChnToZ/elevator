@@ -25,13 +25,11 @@ namespace Elevator {
 
         public static void LoadAssembly(Assembly assembly) {
             var handlerType = typeof(IHandler);
-            foreach(Type type in assembly.GetTypes()) {
-                if(!handlerType.IsAssignableFrom(type) || type.IsAbstract)
-                    continue;
-                if(!PriorityAttribute.IsDefined(type))
-                    continue;
-                RuntimeHelpers.RunClassConstructor(typeof(HandlerMeta<>).MakeGenericType(type).TypeHandle);
-            }
+            foreach(Type type in assembly.GetTypes())
+                if(handlerType.IsAssignableFrom(type) &&
+                    !type.IsAbstract &&
+                    PriorityAttribute.IsDefined(type))
+                    RuntimeHelpers.RunClassConstructor(GetHandlerMetaType(type).TypeHandle);
         }
 
         public static void DoTypeMatch(Match match, ref Type result, ref int currentPriority) {
@@ -46,9 +44,7 @@ namespace Elevator {
         public static bool ComparePriority(Type handlerType, Match match, ref int priority) {
             if(!comparePriorityCache.TryGetValue(handlerType, out var comparePriority))
                 comparePriorityCache[handlerType] = comparePriority =
-                    Utils.MethodToDelegate<ComparePriorityDelegate>(
-                        typeof(HandlerMeta<>).MakeGenericType(handlerType),
-                        "ComparePriority");
+                    GetHandlerMetaType(handlerType).GetMethodToDelegate<ComparePriorityDelegate>("ComparePriority");
             return comparePriority(match, ref priority);
         }
 
@@ -59,9 +55,7 @@ namespace Elevator {
             var handlerType = handler.GetType();
             if(!handleArgumentCache.TryGetValue(handlerType, out var handleArgument))
                 handleArgumentCache[handlerType] = handleArgument =
-                    Utils.MethodToDelegate<HandleArgumentDelegate>(
-                        typeof(HandlerMeta<>).MakeGenericType(handlerType),
-                        "HandleArgument");
+                    GetHandlerMetaType(handlerType).GetMethodToDelegate<HandleArgumentDelegate>("HandleArgument");
             return handleArgument(handler, match);
         }
 
@@ -74,6 +68,9 @@ namespace Elevator {
                 if(entry.Matches(arg, chr, priortized))
                     yield return entry;
         }
+
+        private static Type GetHandlerMetaType(Type handlerType) =>
+            typeof(HandlerMeta<>).MakeGenericType(handlerType);
     }
 
     public static class HandlerMeta<THandler> where THandler : IHandler {

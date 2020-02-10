@@ -2,7 +2,7 @@
 using System.Text.RegularExpressions;
 
 namespace Elevator {
-    internal struct ParsedInfo {
+    public struct ParsedInfo {
         private static readonly Regex rParseArg = new Regex("^(?:-{1,2}|\\/)((.+?)(?:=(.+?))?)$");
 
         public readonly Type handlerType;
