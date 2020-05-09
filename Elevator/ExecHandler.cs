@@ -31,8 +31,10 @@ namespace Elevator {
             startInfo.WindowStyle = value;
 
         [ArgumentEntry("v", Prefixed = true)]
-        public void HandleWindowStyle(string value) =>
+        public void HandleWindowStyle(string value) {
             startInfo.Verb = value;
+            startInfo.UseShellExecute = true;
+        }
 
         [ArgumentEntry("nowindow")]
         public void HandleNoWindow() =>

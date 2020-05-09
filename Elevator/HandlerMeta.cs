@@ -20,10 +20,31 @@ namespace Elevator {
             priortizedCache = new Dictionary<Type, int>();
             comparePriorityCache = new Dictionary<Type, ComparePriorityDelegate>();
             handleArgumentCache = new Dictionary<Type, HandleArgumentDelegate>();
-            LoadAssembly(Assembly.GetExecutingAssembly());
+            LoadAssembly(Assembly.GetExecutingAssembly(), false);
         }
 
-        public static void LoadAssembly(Assembly assembly) {
+        private static void InvokeMain(Assembly assembly) {
+            var entryPoint = assembly.EntryPoint;
+            if(entryPoint == null) return;
+            var paramInfos = entryPoint.GetParameters();
+            object[] paramValues;
+            switch(paramInfos.Length) {
+                case 0:
+                    paramValues = new object[0];
+                    break;
+                case 1:
+                    if(paramInfos[0].ParameterType != typeof(string[]))
+                        throw new NotSupportedException();
+                    paramValues = new object[] { Environment.GetCommandLineArgs() };
+                    break;
+                default:
+                    throw new NotSupportedException();
+            }
+            entryPoint.Invoke(null, paramValues);
+        }
+
+        public static void LoadAssembly(Assembly assembly, bool runEntryPoint = true) {
+            if(runEntryPoint) InvokeMain(assembly);
             var handlerType = typeof(IHandler);
             foreach(Type type in assembly.GetTypes())
                 if(handlerType.IsAssignableFrom(type) &&
