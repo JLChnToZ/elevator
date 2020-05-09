@@ -8,7 +8,7 @@ namespace Elevator {
 
         public override int Launch() {
             var process = Process.Start(startInfo);
-            if(wait != WaitMode.Wait)
+            if(wait != WaitMode.Wait || process == null)
                 return 0;
             process.WaitForExit();
             return process.ExitCode;
